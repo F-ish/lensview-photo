@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LensView - 高品质照片社区</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            primary: '#0078D4',
+            secondary: '#1E1E1E',
+            dark: '#121212',
+            light: '#F5F5F5',
+            muted: '#666666',
+          },
+          fontFamily: {
+            inter: ['Inter', 'sans-serif'],
+          },
+        },
+      }
+    }
+  </script>
+  
+  <style type="text/tailwindcss">
+    @layer utilities {
+      .photo-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+      }
+      .hover-scale {
+        transition: transform 0.3s ease;
+      }
+      .hover-scale:hover {
+        transform: scale(1.02);
+      }
+      .photo-card-shadow {
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      }
+      .nav-shadow {
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+      }
+      .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+      }
+      .scrollbar-hide {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    }
+  </style>
+</head>
+<body class="bg-dark text-light font-inter min-h-screen flex flex-col">
+  <!-- 登录模态框 -->
+  <div id="loginModal" class="hidden fixed inset-0 z-[60] flex items-center justify-center bg-dark/90">
+    <div class="bg-secondary rounded-2xl w-full max-w-md p-8">
+      <div class="text-center mb-6">
+        <i class="fa fa-camera text-primary text-4xl mb-3"></i>
+        <h2 class="text-2xl font-bold">LensView 登录</h2>
+        <p class="text-muted mt-2">管理员专属</p>
+      </div>
+      
+      <form id="loginForm" onsubmit="handleLogin(event)">
+        <div class="mb-4">
+          <label class="block text-sm font-medium mb-2">用户名</label>
+          <input type="text" id="username" required 
+            class="w-full bg-dark/50 border border-light/20 rounded-lg px-4 py-3 focus:outline-none focus:border-primary"
+            placeholder="请输入用户名">
+        </div>
+        
+        <div class="mb-6">
+          <label class="block text-sm font-medium mb-2">密码</label>
+          <input type="password" id="password" required 
+            class="w-full bg-dark/50 border border-light/20 rounded-lg px-4 py-3 focus:outline-none focus:border-primary"
+            placeholder="请输入密码">
+        </div>
+        
+        <div id="loginError" class="hidden mb-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"></div>
+        
+        <button type="submit" class="w-full bg-primary hover:bg-primary/90 text-white py-3 rounded-lg font-medium transition">
+          登录
+        </button>
+      </form>
+      
+      <button onclick="closeLoginModal()" class="w-full mt-4 text-muted hover:text-light text-sm">
+        暂不登录，仅浏览
+      </button>
+    </div>
+  </div>
+
+  <!-- 顶部导航栏 -->
+  <header class="bg-secondary nav-shadow sticky top-0 z-50">
+    <div class="container mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center space-x-1">
+        <i class="fa fa-camera text-primary text-2xl"></i>
+        <span class="text-xl font-bold">LensView</span>
+      </div>
+      
+      <nav class="hidden md:flex items-center space-x-6">
+        <a href="#" class="text-light hover:text-primary font-medium">首页</a>
+        <a href="#" class="text-muted hover:text-primary">发现</a>
+        <a href="#" class="text-muted hover:text-primary">挑战</a>
+        <a href="#" class="text-muted hover:text-primary">社区</a>
+      </nav>
+      
+      <div class="flex items-center space-x-4">
+        <!-- 登录状态显示 -->
+        <div id="authSection" class="flex items-center space-x-4">
+          <button id="loginBtn" onclick="openLoginModal()" class="text-muted hover:text-light">
+            <i class="fa fa-user"></i>
+            <span class="hidden sm:inline ml-1">登录</span>
+          </button>
+          <div id="userSection" class="hidden flex items-center space-x-4">
+            <span class="text-sm text-muted">
+              <i class="fa fa-user-circle text-primary"></i>
+              <span id="usernameDisplay" class="ml-1"></span>
+            </span>
+            <button onclick="openUploadModal()" class="bg-primary hover:bg-primary/90 text-white py-1.5 px-4 rounded-full flex items-center space-x-2">
+              <i class="fa fa-upload"></i>
+              <span class="hidden sm:inline">上传</span>
+            </button>
+            <button onclick="handleLogout()" class="text-muted hover:text-red-400" title="退出登录">
+              <i class="fa fa-sign-out"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- 分类标签栏 -->
+  <div class="bg-secondary/70 py-3 overflow-x-auto scrollbar-hide sticky top-[61px] z-40">
+    <div class="container mx-auto px-4">
+      <div class="flex space-x-3 whitespace-nowrap" id="categoryFilters">
+        <button class="bg-primary text-white py-1 px-3 rounded-full text-sm" data-category="全部">全部</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="人像">人像</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="风景">风景</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="城市">城市</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="自然">自然</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="动物">动物</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="建筑">建筑</button>
+        <button class="bg-dark/50 text-muted py-1 px-3 rounded-full text-sm" data-category="美食">美食</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主内容区 -->
+  <main class="flex-grow container mx-auto px-4 py-6">
+    <!-- 照片网格 -->
+    <section>
+      <h2 class="text-xl font-bold mb-6">热门照片</h2>
+      <div class="photo-grid" id="photoGrid">
+        <!-- 照片卡片会通过 JS 动态加载 -->
+      </div>
+    </section>
+  </main>
+
+  <!-- 上传模态框 -->
+  <div id="uploadModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-dark/80">
+    <div class="bg-secondary rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+      <div class="p-6 border-b border-light/10 flex justify-between items-center">
+        <h3 class="text-xl font-bold">上传照片</h3>
+        <button onclick="closeUploadModal()" class="text-light/70 hover:text-light">
+          <i class="fa fa-times"></i>
+        </button>
+      </div>
+      
+      <div class="p-6">
+        <!-- 文件上传区域 -->
+        <div class="border-2 border-dashed border-light/30 rounded-xl p-8 text-center mb-6">
+          <i class="fa fa-cloud-upload text-4xl text-primary mb-3"></i>
+          <h4 class="font-semibold mb-2">拖放照片到这里</h4>
+          <p class="text-light/70 mb-4">或者</p>
+          <input type="file" id="fileInput" class="hidden" accept="image/*">
+          <button onclick="document.getElementById('fileInput').click()" class="bg-primary hover:bg-primary/90 text-white py-2 px-6 rounded-full">
+            选择文件
+          </button>
+          <p class="text-xs text-light/50 mt-3">支持 JPG, PNG, GIF 格式，最大 20MB</p>
+        </div>
+        
+        <!-- 文件预览 -->
+        <div id="filePreview" class="hidden mb-6">
+          <div class="bg-dark/50 rounded-xl p-4 flex items-center">
+            <div class="w-16 h-16 bg-primary/20 rounded-lg flex items-center justify-center mr-4">
+              <i class="fa fa-file-image-o text-2xl text-primary"></i>
+            </div>
+            <div class="flex-grow">
+              <h4 id="fileName" class="font-medium"></h4>
+              <p id="fileSize" class="text-sm text-light/70"></p>
+            </div>
+            <button onclick="resetFileUpload()" class="text-light/50 hover:text-primary">
+              <i class="fa fa-times"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- 表单字段 -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium mb-2">分类</label>
+            <select id="categorySelect" class="w-full bg-dark/50 border border-light/20 rounded-lg px-4 py-3 focus:outline-none focus:border-primary">
+              <option value="人像">人像</option>
+              <option value="风景">风景</option>
+              <option value="城市">城市</option>
+              <option value="自然">自然</option>
+              <option value="动物">动物</option>
+              <option value="建筑">建筑</option>
+              <option value="美食">美食</option>
+            </select>
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium mb-2">标题</label>
+            <input type="text" id="photoTitle" class="w-full bg-dark/50 border border-light/20 rounded-lg px-4 py-3 focus:outline-none focus:border-primary" placeholder="给照片起个标题">
+          </div>
+          
+          <div>
+            <label class="block text-sm font-medium mb-2">描述</label>
+            <textarea id="photoDesc" rows="3" class="w-full bg-dark/50 border border-light/20 rounded-lg px-4 py-3 focus:outline-none focus:border-primary resize-none" placeholder="分享照片背后的故事..."></textarea>
+          </div>
+        </div>
+        
+        <div id="uploadProgress" class="hidden mt-6">
+          <div class="bg-dark/50 rounded-full h-2 overflow-hidden">
+            <div id="progressBar" class="bg-primary h-full transition-all duration-300" style="width: 0%"></div>
+          </div>
+          <p id="progressText" class="text-sm text-light/70 mt-2 text-center">上传中...</p>
+        </div>
+        
+        <div id="uploadError" class="hidden mt-4 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-400 text-sm"></div>
+        
+        <button onclick="uploadPhoto()" class="w-full mt-6 bg-primary hover:bg-primary/90 text-white py-3 rounded-lg font-medium transition">
+          上传照片
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页脚 -->
+  <footer class="bg-secondary py-6 mt-auto">
+    <div class="container mx-auto px-4 text-center text-muted text-sm">
+      <p>&copy; 2026 LensView. All rights reserved.</p>
+    </div>
+  </footer>
+
+  <!-- JavaScript -->
+  <script>
+    // ==================== 认证管理 ====================
+    let currentUser = null;
+    let authToken = null;
+    
+    // 页面加载时检查登录状态
+    window.addEventListener('DOMContentLoaded', () => {
+      checkAuthStatus();
+      loadCategories();
+      loadPhotos('全部');
+      setupCategoryFilters();
+      setupFileInput();
+    });
+    
+    async function checkAuthStatus() {
+      const token = localStorage.getItem('lensview_token');
+      if (!token) {
+        updateAuthUI(null);
+        return;
+      }
+      
+      try {
+        const response = await fetch('/api/auth/verify', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.valid) {
+            currentUser = data.user;
+            authToken = token;
+            updateAuthUI(data.user);
+          } else {
+            logout();
+          }
+        } else {
+          logout();
+        }
+      } catch (error) {
+        console.error('验证失败:', error);
+        logout();
+      }
+    }
+    
+    function updateAuthUI(user) {
+      const loginBtn = document.getElementById('loginBtn');
+      const userSection = document.getElementById('userSection');
+      const usernameDisplay = document.getElementById('usernameDisplay');
+      
+      if (user) {
+        loginBtn.classList.add('hidden');
+        userSection.classList.remove('hidden');
+        usernameDisplay.textContent = user.username;
+      } else {
+        loginBtn.classList.remove('hidden');
+        userSection.classList.add('hidden');
+      }
+    }
+    
+    function openLoginModal() {
+      document.getElementById('loginModal').classList.remove('hidden');
+    }
+    
+    function closeLoginModal() {
+      document.getElementById('loginModal').classList.add('hidden');
+      document.getElementById('loginError').classList.add('hidden');
+    }
+    
+    async function handleLogin(event) {
+      event.preventDefault();
+      
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+      const errorDiv = document.getElementById('loginError');
+      
+      try {
+        const response = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+          authToken = data.data.token;
+          currentUser = data.data.user;
+          localStorage.setItem('lensview_token', authToken);
+          updateAuthUI(data.data.user);
+          closeLoginModal();
+          
+          // 清空表单
+          document.getElementById('username').value = '';
+          document.getElementById('password').value = '';
+        } else {
+          errorDiv.textContent = data.error || '登录失败';
+          errorDiv.classList.remove('hidden');
+        }
+      } catch (error) {
+        errorDiv.textContent = '网络错误，请稍后重试';
+        errorDiv.classList.remove('hidden');
+      }
+    }
+    
+    function handleLogout() {
+      logout();
+    }
+    
+    function logout() {
+      localStorage.removeItem('lensview_token');
+      authToken = null;
+      currentUser = null;
+      updateAuthUI(null);
+    }
+    
+    // ==================== 照片管理 ====================
+    async function loadCategories() {
+      try {
+        const response = await fetch('/api/categories');
+        const data = await response.json();
+        
+        const container = document.getElementById('categoryFilters');
+        // 保留"全部"按钮，添加其他分类
+        const allButton = container.querySelector('[data-category="全部"]');
+        container.innerHTML = '';
+        container.appendChild(allButton);
+        
+        data.categories.forEach(cat => {
+          const btn = document.createElement('button');
+          btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm';
+          btn.dataset.category = cat;
+          btn.textContent = cat;
+          container.appendChild(btn);
+        });
+      } catch (error) {
+        console.error('加载分类失败:', error);
+      }
+    }
+    
+    async function loadPhotos(category) {
+      const grid = document.getElementById('photoGrid');
+      grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">加载中...</div>';
+      
+      try {
+        const url = category === '全部' ? '/api/categories' : `/api/images/${category}`;
+        
+        let images = [];
+        if (category === '全部') {
+          // 加载所有分类的照片
+          const catsResponse = await fetch(url);
+          const catsData = await catsResponse.json();
+          
+          for (const cat of catsData.categories) {
+            const imgResponse = await fetch(`/api/images/${cat}`);
+            const imgData = await imgResponse.json();
+            images = images.concat(imgData.images.map(img => ({ ...img, category: cat })));
+          }
+        } else {
+          const response = await fetch(url);
+          const data = await response.json();
+          images = data.images.map(img => ({ ...img, category }));
+        }
+        
+        if (images.length === 0) {
+          grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">暂无照片</div>';
+          return;
+        }
+        
+        grid.innerHTML = '';
+        images.forEach(img => {
+          const card = document.createElement('div');
+          card.className = 'bg-secondary rounded-xl overflow-hidden photo-card-shadow hover-scale';
+          card.innerHTML = `
+            <div class="aspect-w-4 aspect-h-3 bg-dark/50">
+              <img src="${img.url}" alt="${img.filename}" class="w-full h-48 object-cover" loading="lazy">
+            </div>
+            <div class="p-4">
+              <div class="flex justify-between items-center">
+                <span class="text-xs text-primary bg-primary/20 px-2 py-1 rounded">${img.category}</span>
+                ${currentUser ? `
+                  <button onclick="deletePhoto('${img.category}', '${img.filename}')" class="text-red-400 hover:text-red-300 text-sm">
+                    <i class="fa fa-trash"></i>
+                  </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+          grid.appendChild(card);
+        });
+      } catch (error) {
+        console.error('加载照片失败:', error);
+        grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-20">加载失败</div>';
+      }
+    }
+    
+    function setupCategoryFilters() {
+      document.getElementById('categoryFilters').addEventListener('click', (e) => {
+        if (e.target.tagName === 'BUTTON') {
+          // 更新按钮样式
+          document.querySelectorAll('#categoryFilters button').forEach(btn => {
+            btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm';
+          });
+          e.target.className = 'bg-primary text-white py-1 px-3 rounded-full text-sm';
+          
+          // 加载对应分类的照片
+          loadPhotos(e.target.dataset.category);
+        }
+      });
+    }
+    
+    async function deletePhoto(category, filename) {
+      if (!confirm('确定要删除这张照片吗？')) return;
+      
+      try {
+        const response = await fetch(`/api/images/${category}/${filename}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        
+        if (response.ok) {
+          // 重新加载照片
+          loadPhotos(category);
+        } else {
+          const data = await response.json();
+          alert('删除失败：' + data.error);
+        }
+      } catch (error) {
+        alert('删除失败：' + error.message);
+      }
+    }
+    
+    // ==================== 上传功能 ====================
+    let selectedFile = null;
+    
+    function openUploadModal() {
+      if (!currentUser) {
+        alert('请先登录');
+        openLoginModal();
+        return;
+      }
+      document.getElementById('uploadModal').classList.remove('hidden');
+    }
+    
+    function closeUploadModal() {
+      document.getElementById('uploadModal').classList.add('hidden');
+      resetFileUpload();
+    }
+    
+    function closeModalFunc() {
+      closeUploadModal();
+    }
+    
+    function setupFileInput() {
+      const fileInput = document.getElementById('fileInput');
+      fileInput.addEventListener('change', (e) => {
+        handleFileSelect(e.target.files[0]);
+      });
+    }
+    
+    function handleFileSelect(file) {
+      if (!file) return;
+      
+      // 验证文件类型
+      if (!file.type.startsWith('image/')) {
+        alert('请选择图片文件');
+        return;
+      }
+      
+      // 验证文件大小
+      if (file.size > 20 * 1024 * 1024) {
+        alert('文件大小不能超过 20MB');
+        return;
+      }
+      
+      selectedFile = file;
+      
+      // 显示预览
+      document.getElementById('fileName').textContent = file.name;
+      document.getElementById('fileSize').textContent = formatFileSize(file.size);
+      document.getElementById('filePreview').classList.remove('hidden');
+    }
+    
+    function resetFileUpload() {
+      selectedFile = null;
+      document.getElementById('fileInput').value = '';
+      document.getElementById('filePreview').classList.add('hidden');
+      document.getElementById('uploadProgress').classList.add('hidden');
+      document.getElementById('uploadError').classList.add('hidden');
+    }
+    
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+    
+    async function uploadPhoto() {
+      if (!selectedFile) {
+        alert('请选择要上传的照片');
+        return;
+      }
+      
+      if (!currentUser) {
+        alert('请先登录');
+        openLoginModal();
+        return;
+      }
+      
+      const formData = new FormData();
+      formData.append('photo', selectedFile);
+      formData.append('category', document.getElementById('categorySelect').value);
+      formData.append('title', document.getElementById('photoTitle').value);
+      formData.append('description', document.getElementById('photoDesc').value);
+      
+      const progressBar = document.getElementById('progressBar');
+      const progressText = document.getElementById('progressText');
+      const progressContainer = document.getElementById('uploadProgress');
+      const errorDiv = document.getElementById('uploadError');
+      
+      try {
+        progressContainer.classList.remove('hidden');
+        errorDiv.classList.add('hidden');
+        progressBar.style.width = '0%';
+        progressText.textContent = '上传中...';
+        
+        const xhr = new XMLHttpRequest();
+        
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            const percent = Math.round((e.loaded / e.total) * 100);
+            progressBar.style.width = percent + '%';
+            progressText.textContent = `上传中... ${percent}%`;
+          }
+        });
+        
+        xhr.addEventListener('load', () => {
+          if (xhr.status === 200) {
+            const response = JSON.parse(xhr.responseText);
+            progressText.textContent = '✅ 上传成功！';
+            progressBar.classList.add('bg-green-500');
+            
+            setTimeout(() => {
+              closeUploadModal();
+              loadPhotos(document.querySelector('#categoryFilters .bg-primary').dataset.category);
+            }, 1000);
+          } else {
+            const response = JSON.parse(xhr.responseText);
+            errorDiv.textContent = response.error || '上传失败';
+            errorDiv.classList.remove('hidden');
+            progressContainer.classList.add('hidden');
+          }
+        });
+        
+        xhr.addEventListener('error', () => {
+          errorDiv.textContent = '网络错误，请稍后重试';
+          errorDiv.classList.remove('hidden');
+          progressContainer.classList.add('hidden');
+        });
+        
+        xhr.open('POST', '/api/upload');
+        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+        xhr.send(formData);
+      } catch (error) {
+        errorDiv.textContent = '上传失败：' + error.message;
+        errorDiv.classList.remove('hidden');
+        progressContainer.classList.add('hidden');
+      }
+    }
+  </script>
+</body>
+</html>
