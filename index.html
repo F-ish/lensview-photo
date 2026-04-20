@@ -109,7 +109,6 @@
       </nav>
       
       <div class="flex items-center space-x-4">
-        <!-- 登录状态显示 -->
         <div id="authSection" class="flex items-center space-x-4">
           <button id="loginBtn" onclick="openLoginModal()" class="text-muted hover:text-light">
             <i class="fa fa-user"></i>
@@ -151,14 +150,41 @@
 
   <!-- 主内容区 -->
   <main class="flex-grow container mx-auto px-4 py-6">
-    <!-- 照片网格 -->
     <section>
       <h2 class="text-xl font-bold mb-6">热门照片</h2>
-      <div class="photo-grid" id="photoGrid">
-        <!-- 照片卡片会通过 JS 动态加载 -->
-      </div>
+      <div class="photo-grid" id="photoGrid"></div>
     </section>
   </main>
+
+  <!-- 照片预览模态框 -->
+  <div id="photoPreviewModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-dark/95" onclick="closePhotoPreview(event)">
+    <!-- 关闭按钮 - 固定在页面右上角 -->
+    <button onclick="closePhotoPreviewDirect()" class="fixed top-6 right-6 z-[80] bg-red-500/80 hover:bg-red-600 text-white w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg">
+      <i class="fa fa-times text-2xl"></i>
+    </button>
+    
+    <!-- 左侧切换按钮 -->
+    <button onclick="event.stopPropagation(); prevPhoto()" class="fixed left-6 top-1/2 -translate-y-1/2 z-[75] bg-dark/50 hover:bg-primary/80 text-white w-14 h-14 rounded-full flex items-center justify-center transition shadow-xl hover:scale-110">
+      <i class="fa fa-chevron-left text-3xl"></i>
+    </button>
+    
+    <!-- 图片容器 -->
+    <div class="relative max-w-6xl max-h-screen p-4 flex items-center justify-center">
+      <img id="previewImage" src="" class="max-w-full max-h-[85vh] object-contain rounded-lg" onclick="event.stopPropagation()">
+    </div>
+    
+    <!-- 右侧切换按钮 -->
+    <button onclick="event.stopPropagation(); nextPhoto()" class="fixed right-6 top-1/2 -translate-y-1/2 z-[75] bg-dark/50 hover:bg-primary/80 text-white w-14 h-14 rounded-full flex items-center justify-center transition shadow-xl hover:scale-110">
+      <i class="fa fa-chevron-right text-3xl"></i>
+    </button>
+    
+    <!-- 照片信息 -->
+    <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[75] bg-dark/80 px-6 py-3 rounded-full text-center">
+      <h3 id="previewTitle" class="text-lg font-bold text-light"></h3>
+      <p id="previewCategory" class="text-sm text-muted mt-1"></p>
+      <p id="previewIndex" class="text-xs text-primary mt-2"></p>
+    </div>
+  </div>
 
   <!-- 上传模态框 -->
   <div id="uploadModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-dark/80">
@@ -171,7 +197,6 @@
       </div>
       
       <div class="p-6">
-        <!-- 文件上传区域 -->
         <div class="border-2 border-dashed border-light/30 rounded-xl p-8 text-center mb-6">
           <i class="fa fa-cloud-upload text-4xl text-primary mb-3"></i>
           <h4 class="font-semibold mb-2">拖放照片到这里</h4>
@@ -183,7 +208,6 @@
           <p class="text-xs text-light/50 mt-3">支持 JPG, PNG, GIF 格式，最大 20MB</p>
         </div>
         
-        <!-- 文件预览 -->
         <div id="filePreview" class="hidden mb-6">
           <div class="bg-dark/50 rounded-xl p-4 flex items-center">
             <div class="w-16 h-16 bg-primary/20 rounded-lg flex items-center justify-center mr-4">
@@ -199,7 +223,6 @@
           </div>
         </div>
         
-        <!-- 表单字段 -->
         <div class="space-y-4">
           <div>
             <label class="block text-sm font-medium mb-2">分类</label>
@@ -241,382 +264,461 @@
     </div>
   </div>
 
-  <!-- 页脚 -->
   <footer class="bg-secondary py-6 mt-auto">
     <div class="container mx-auto px-4 text-center text-muted text-sm">
       <p>&copy; 2026 LensView. All rights reserved.</p>
     </div>
   </footer>
 
-  <!-- JavaScript -->
   <script>
-    // ==================== 认证管理 ====================
-    let currentUser = null;
-    let authToken = null;
-    
-    // 页面加载时检查登录状态
-    window.addEventListener('DOMContentLoaded', () => {
-      checkAuthStatus();
-      loadCategories();
-      loadPhotos('全部');
-      setupCategoryFilters();
-      setupFileInput();
+// ========== 全局变量 ==========
+let filteredPhotos = [];        // 当前筛选的照片数组
+let currentPhotoIndex = -1;     // 当前预览的照片索引
+let currentUser = null;
+let authToken = null;
+
+// ========== 页面初始化 ==========
+window.addEventListener('DOMContentLoaded', () => {
+  console.log('🚀 页面加载完成');
+  checkAuthStatus();
+  loadCategories();
+  loadPhotos('全部');
+  setupCategoryFilters();
+  setupFileInput();
+  setupKeyboardEvents();
+});
+
+// ========== 认证管理 ==========
+async function checkAuthStatus() {
+  const token = localStorage.getItem('lensview_token');
+  if (!token) {
+    updateAuthUI(null);
+    return;
+  }
+  
+  try {
+    const response = await fetch('/api/auth/verify', {
+      headers: { 'Authorization': `Bearer ${token}` }
     });
     
-    async function checkAuthStatus() {
-      const token = localStorage.getItem('lensview_token');
-      if (!token) {
-        updateAuthUI(null);
-        return;
-      }
-      
-      try {
-        const response = await fetch('/api/auth/verify', {
-          headers: { 'Authorization': `Bearer ${token}` }
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          if (data.valid) {
-            currentUser = data.user;
-            authToken = token;
-            updateAuthUI(data.user);
-          } else {
-            logout();
-          }
-        } else {
-          logout();
-        }
-      } catch (error) {
-        console.error('验证失败:', error);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.valid) {
+        currentUser = data.user;
+        authToken = token;
+        updateAuthUI(data.user);
+      } else {
         logout();
       }
-    }
-    
-    function updateAuthUI(user) {
-      const loginBtn = document.getElementById('loginBtn');
-      const userSection = document.getElementById('userSection');
-      const usernameDisplay = document.getElementById('usernameDisplay');
-      
-      if (user) {
-        loginBtn.classList.add('hidden');
-        userSection.classList.remove('hidden');
-        usernameDisplay.textContent = user.username;
-      } else {
-        loginBtn.classList.remove('hidden');
-        userSection.classList.add('hidden');
-      }
-    }
-    
-    function openLoginModal() {
-      document.getElementById('loginModal').classList.remove('hidden');
-    }
-    
-    function closeLoginModal() {
-      document.getElementById('loginModal').classList.add('hidden');
-      document.getElementById('loginError').classList.add('hidden');
-    }
-    
-    async function handleLogin(event) {
-      event.preventDefault();
-      
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
-      const errorDiv = document.getElementById('loginError');
-      
-      try {
-        const response = await fetch('/api/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password })
-        });
-        
-        const data = await response.json();
-        
-        if (response.ok && data.success) {
-          authToken = data.data.token;
-          currentUser = data.data.user;
-          localStorage.setItem('lensview_token', authToken);
-          updateAuthUI(data.data.user);
-          closeLoginModal();
-          
-          // 清空表单
-          document.getElementById('username').value = '';
-          document.getElementById('password').value = '';
-        } else {
-          errorDiv.textContent = data.error || '登录失败';
-          errorDiv.classList.remove('hidden');
-        }
-      } catch (error) {
-        errorDiv.textContent = '网络错误，请稍后重试';
-        errorDiv.classList.remove('hidden');
-      }
-    }
-    
-    function handleLogout() {
+    } else {
       logout();
     }
+  } catch (error) {
+    console.error('验证失败:', error);
+    logout();
+  }
+}
+
+function updateAuthUI(user) {
+  const loginBtn = document.getElementById('loginBtn');
+  const userSection = document.getElementById('userSection');
+  const usernameDisplay = document.getElementById('usernameDisplay');
+  
+  if (user) {
+    loginBtn.classList.add('hidden');
+    userSection.classList.remove('hidden');
+    usernameDisplay.textContent = user.username;
+  } else {
+    loginBtn.classList.remove('hidden');
+    userSection.classList.add('hidden');
+  }
+}
+
+function openLoginModal() {
+  document.getElementById('loginModal').classList.remove('hidden');
+}
+
+function closeLoginModal() {
+  document.getElementById('loginModal').classList.add('hidden');
+  document.getElementById('loginError').classList.add('hidden');
+}
+
+async function handleLogin(event) {
+  event.preventDefault();
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const errorDiv = document.getElementById('loginError');
+  
+  try {
+    const response = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
     
-    function logout() {
-      localStorage.removeItem('lensview_token');
-      authToken = null;
-      currentUser = null;
-      updateAuthUI(null);
+    const data = await response.json();
+    
+    if (response.ok && data.success) {
+      authToken = data.data.token;
+      currentUser = data.data.user;
+      localStorage.setItem('lensview_token', authToken);
+      updateAuthUI(data.data.user);
+      closeLoginModal();
+      document.getElementById('username').value = '';
+      document.getElementById('password').value = '';
+    } else {
+      errorDiv.textContent = data.error || '登录失败';
+      errorDiv.classList.remove('hidden');
+    }
+  } catch (error) {
+    errorDiv.textContent = '网络错误，请稍后重试';
+    errorDiv.classList.remove('hidden');
+  }
+}
+
+function handleLogout() {
+  logout();
+}
+
+function logout() {
+  localStorage.removeItem('lensview_token');
+  authToken = null;
+  currentUser = null;
+  updateAuthUI(null);
+}
+
+// ========== 分类管理 ==========
+async function loadCategories() {
+  try {
+    const response = await fetch('/api/categories');
+    const data = await response.json();
+    
+    const container = document.getElementById('categoryFilters');
+    if (!container) return;
+    
+    const allButton = container.querySelector('[data-category="全部"]');
+    container.innerHTML = '';
+    if (allButton) container.appendChild(allButton);
+    
+    data.categories.forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm hover:text-light cursor-pointer';
+      btn.dataset.category = cat;
+      btn.textContent = cat;
+      container.appendChild(btn);
+    });
+  } catch (error) {
+    console.error('加载分类失败:', error);
+  }
+}
+
+function setupCategoryFilters() {
+  const container = document.getElementById('categoryFilters');
+  if (!container) return;
+  
+  container.addEventListener('click', (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    
+    container.querySelectorAll('button').forEach(b => {
+      b.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm hover:text-light cursor-pointer';
+    });
+    btn.className = 'bg-primary text-white py-1 px-3 rounded-full text-sm cursor-pointer';
+    
+    const category = btn.dataset.category;
+    if (category) {
+      loadPhotos(category);
+    }
+  });
+}
+
+// ========== 照片加载与显示 ==========
+async function loadPhotos(category) {
+  const grid = document.getElementById('photoGrid');
+  grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">加载中...</div>';
+  
+  try {
+    let images = [];
+    if (category === '全部') {
+      const catsResponse = await fetch('/api/categories');
+      const catsData = await catsResponse.json();
+      
+      for (const cat of catsData.categories) {
+        const imgResponse = await fetch(`/api/images/${cat}`);
+        const imgData = await imgResponse.json();
+        images = images.concat(imgData.images.map(img => ({ ...img, category: cat })));
+      }
+    } else {
+      const response = await fetch(`/api/images/${category}`);
+      const data = await response.json();
+      images = data.images.map(img => ({ ...img, category }));
     }
     
-    // ==================== 照片管理 ====================
-    async function loadCategories() {
-      try {
-        const response = await fetch('/api/categories');
-        const data = await response.json();
-        
-        const container = document.getElementById('categoryFilters');
-        // 保留"全部"按钮，添加其他分类
-        const allButton = container.querySelector('[data-category="全部"]');
-        container.innerHTML = '';
-        container.appendChild(allButton);
-        
-        data.categories.forEach(cat => {
-          const btn = document.createElement('button');
-          btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm';
-          btn.dataset.category = cat;
-          btn.textContent = cat;
-          container.appendChild(btn);
-        });
-      } catch (error) {
-        console.error('加载分类失败:', error);
+    // 保存到全局数组
+    filteredPhotos = images;
+    
+    if (images.length === 0) {
+      grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">暂无照片</div>';
+      return;
+    }
+    
+    // 渲染照片卡片
+    grid.innerHTML = '';
+    images.forEach((img, index) => {
+      const card = document.createElement('div');
+      card.className = 'bg-secondary rounded-xl overflow-hidden photo-card-shadow hover-scale cursor-pointer';
+      card.onclick = () => openPhotoPreview(img.url, img.filename, img.category);
+      card.innerHTML = `
+        <div class="aspect-w-4 aspect-h-3 bg-dark/50 relative">
+          <img src="${img.url}" alt="${img.filename}" class="w-full h-48 object-cover" loading="lazy">
+        </div>
+        <div class="p-4">
+          <div class="flex justify-between items-center">
+            <span class="text-xs text-primary bg-primary/20 px-2 py-1 rounded">${img.category}</span>
+            ${currentUser ? `
+              <button onclick="event.stopPropagation(); deletePhoto('${img.category}', '${img.filename}')" class="text-red-400 hover:text-red-300 text-sm">
+                <i class="fa fa-trash"></i>
+              </button>
+            ` : ''}
+          </div>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+    
+    console.log(`✅ 加载 ${images.length} 张照片，分类：${category}`);
+  } catch (error) {
+    console.error('加载照片失败:', error);
+    grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-20">加载失败</div>';
+  }
+}
+
+// ========== 大图预览功能 ==========
+function openPhotoPreview(url, filename, category) {
+  console.log('🖼️ 打开预览:', filename);
+  
+  const modal = document.getElementById('photoPreviewModal');
+  const img = document.getElementById('previewImage');
+  const title = document.getElementById('previewTitle');
+  const categoryEl = document.getElementById('previewCategory');
+  const indexEl = document.getElementById('previewIndex');
+  
+  // 找到当前照片在 filteredPhotos 中的索引
+  currentPhotoIndex = filteredPhotos.findIndex(p => p.url === url);
+  if (currentPhotoIndex === -1) currentPhotoIndex = 0;
+  
+  img.src = url;
+  title.textContent = filename;
+  categoryEl.textContent = `分类：${category}`;
+  indexEl.textContent = `${currentPhotoIndex + 1} / ${filteredPhotos.length}`;
+  
+  modal.classList.remove('hidden');
+  console.log(`索引：${currentPhotoIndex + 1}/${filteredPhotos.length}`);
+}
+
+function closePhotoPreview(event) {
+  if (event.target.id === 'photoPreviewModal') {
+    closePhotoPreviewDirect();
+  }
+}
+
+function closePhotoPreviewDirect() {
+  const modal = document.getElementById('photoPreviewModal');
+  modal.classList.add('hidden');
+  currentPhotoIndex = -1;
+}
+
+function prevPhoto() {
+  if (filteredPhotos.length === 0) return;
+  currentPhotoIndex = (currentPhotoIndex - 1 + filteredPhotos.length) % filteredPhotos.length;
+  updatePreview();
+}
+
+function nextPhoto() {
+  if (filteredPhotos.length === 0) return;
+  currentPhotoIndex = (currentPhotoIndex + 1) % filteredPhotos.length;
+  updatePreview();
+}
+
+function updatePreview() {
+  const photo = filteredPhotos[currentPhotoIndex];
+  const img = document.getElementById('previewImage');
+  const title = document.getElementById('previewTitle');
+  const categoryEl = document.getElementById('previewCategory');
+  const indexEl = document.getElementById('previewIndex');
+  
+  if (photo) {
+    img.src = photo.url;
+    title.textContent = photo.filename;
+    categoryEl.textContent = `分类：${photo.category}`;
+    indexEl.textContent = `${currentPhotoIndex + 1} / ${filteredPhotos.length}`;
+    console.log(`🔄 切换到：${photo.filename}`);
+  }
+}
+
+function setupKeyboardEvents() {
+  document.addEventListener('keydown', function(e) {
+    const modal = document.getElementById('photoPreviewModal');
+    if (!modal.classList.contains('hidden')) {
+      if (e.key === 'ArrowLeft') {
+        prevPhoto();
+      } else if (e.key === 'ArrowRight') {
+        nextPhoto();
+      } else if (e.key === 'Escape') {
+        closePhotoPreviewDirect();
       }
     }
+  });
+}
+
+// ========== 照片删除 ==========
+async function deletePhoto(category, filename) {
+  if (!confirm('确定要删除这张照片吗？')) return;
+  
+  try {
+    const response = await fetch(`/api/images/${category}/${filename}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${authToken}` }
+    });
     
-    async function loadPhotos(category) {
-      const grid = document.getElementById('photoGrid');
-      grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">加载中...</div>';
-      
-      try {
-        const url = category === '全部' ? '/api/categories' : `/api/images/${category}`;
-        
-        let images = [];
-        if (category === '全部') {
-          // 加载所有分类的照片
-          const catsResponse = await fetch(url);
-          const catsData = await catsResponse.json();
-          
-          for (const cat of catsData.categories) {
-            const imgResponse = await fetch(`/api/images/${cat}`);
-            const imgData = await imgResponse.json();
-            images = images.concat(imgData.images.map(img => ({ ...img, category: cat })));
-          }
-        } else {
-          const response = await fetch(url);
-          const data = await response.json();
-          images = data.images.map(img => ({ ...img, category }));
-        }
-        
-        if (images.length === 0) {
-          grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">暂无照片</div>';
-          return;
-        }
-        
-        grid.innerHTML = '';
-        images.forEach(img => {
-          const card = document.createElement('div');
-          card.className = 'bg-secondary rounded-xl overflow-hidden photo-card-shadow hover-scale';
-          card.innerHTML = `
-            <div class="aspect-w-4 aspect-h-3 bg-dark/50">
-              <img src="${img.url}" alt="${img.filename}" class="w-full h-48 object-cover" loading="lazy">
-            </div>
-            <div class="p-4">
-              <div class="flex justify-between items-center">
-                <span class="text-xs text-primary bg-primary/20 px-2 py-1 rounded">${img.category}</span>
-                ${currentUser ? `
-                  <button onclick="deletePhoto('${img.category}', '${img.filename}')" class="text-red-400 hover:text-red-300 text-sm">
-                    <i class="fa fa-trash"></i>
-                  </button>
-                ` : ''}
-              </div>
-            </div>
-          `;
-          grid.appendChild(card);
-        });
-      } catch (error) {
-        console.error('加载照片失败:', error);
-        grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-20">加载失败</div>';
+    if (response.ok) {
+      loadPhotos(currentCategory || '全部');
+    } else {
+      const data = await response.json();
+      alert('删除失败：' + data.error);
+    }
+  } catch (error) {
+    alert('删除失败：' + error.message);
+  }
+}
+
+// ========== 文件上传 ==========
+let selectedFile = null;
+
+function openUploadModal() {
+  if (!currentUser) {
+    alert('请先登录');
+    openLoginModal();
+    return;
+  }
+  document.getElementById('uploadModal').classList.remove('hidden');
+}
+
+function closeUploadModal() {
+  document.getElementById('uploadModal').classList.add('hidden');
+  resetFileUpload();
+}
+
+function setupFileInput() {
+  const fileInput = document.getElementById('fileInput');
+  fileInput.addEventListener('change', (e) => {
+    handleFileSelect(e.target.files[0]);
+  });
+}
+
+function handleFileSelect(file) {
+  if (!file) return;
+  
+  if (!file.type.startsWith('image/')) {
+    alert('请选择图片文件');
+    return;
+  }
+  
+  if (file.size > 20 * 1024 * 1024) {
+    alert('文件大小不能超过 20MB');
+    return;
+  }
+  
+  selectedFile = file;
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileSize').textContent = formatFileSize(file.size);
+  document.getElementById('filePreview').classList.remove('hidden');
+}
+
+function resetFileUpload() {
+  selectedFile = null;
+  document.getElementById('fileInput').value = '';
+  document.getElementById('filePreview').classList.add('hidden');
+  document.getElementById('uploadProgress').classList.add('hidden');
+  document.getElementById('uploadError').classList.add('hidden');
+}
+
+function formatFileSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+async function uploadPhoto() {
+  if (!selectedFile) {
+    alert('请选择要上传的照片');
+    return;
+  }
+  
+  if (!currentUser) {
+    alert('请先登录');
+    openLoginModal();
+    return;
+  }
+  
+  const formData = new FormData();
+  formData.append('photo', selectedFile);
+  formData.append('category', document.getElementById('categorySelect').value);
+  formData.append('title', document.getElementById('photoTitle').value);
+  formData.append('description', document.getElementById('photoDesc').value);
+  
+  const progressBar = document.getElementById('progressBar');
+  const progressText = document.getElementById('progressText');
+  const progressContainer = document.getElementById('uploadProgress');
+  const errorDiv = document.getElementById('uploadError');
+  
+  try {
+    progressContainer.classList.remove('hidden');
+    errorDiv.classList.add('hidden');
+    progressBar.style.width = '0%';
+    progressText.textContent = '上传中...';
+    
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        const percent = Math.round((e.loaded / e.total) * 100);
+        progressBar.style.width = percent + '%';
+        progressText.textContent = `上传中... ${percent}%`;
       }
-    }
+    });
     
-    function setupCategoryFilters() {
-      document.getElementById('categoryFilters').addEventListener('click', (e) => {
-        if (e.target.tagName === 'BUTTON') {
-          // 更新按钮样式
-          document.querySelectorAll('#categoryFilters button').forEach(btn => {
-            btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm';
-          });
-          e.target.className = 'bg-primary text-white py-1 px-3 rounded-full text-sm';
-          
-          // 加载对应分类的照片
-          loadPhotos(e.target.dataset.category);
-        }
-      });
-    }
-    
-    async function deletePhoto(category, filename) {
-      if (!confirm('确定要删除这张照片吗？')) return;
-      
-      try {
-        const response = await fetch(`/api/images/${category}/${filename}`, {
-          method: 'DELETE',
-          headers: { 'Authorization': `Bearer ${authToken}` }
-        });
-        
-        if (response.ok) {
-          // 重新加载照片
-          loadPhotos(category);
-        } else {
-          const data = await response.json();
-          alert('删除失败：' + data.error);
-        }
-      } catch (error) {
-        alert('删除失败：' + error.message);
-      }
-    }
-    
-    // ==================== 上传功能 ====================
-    let selectedFile = null;
-    
-    function openUploadModal() {
-      if (!currentUser) {
-        alert('请先登录');
-        openLoginModal();
-        return;
-      }
-      document.getElementById('uploadModal').classList.remove('hidden');
-    }
-    
-    function closeUploadModal() {
-      document.getElementById('uploadModal').classList.add('hidden');
-      resetFileUpload();
-    }
-    
-    function closeModalFunc() {
-      closeUploadModal();
-    }
-    
-    function setupFileInput() {
-      const fileInput = document.getElementById('fileInput');
-      fileInput.addEventListener('change', (e) => {
-        handleFileSelect(e.target.files[0]);
-      });
-    }
-    
-    function handleFileSelect(file) {
-      if (!file) return;
-      
-      // 验证文件类型
-      if (!file.type.startsWith('image/')) {
-        alert('请选择图片文件');
-        return;
-      }
-      
-      // 验证文件大小
-      if (file.size > 20 * 1024 * 1024) {
-        alert('文件大小不能超过 20MB');
-        return;
-      }
-      
-      selectedFile = file;
-      
-      // 显示预览
-      document.getElementById('fileName').textContent = file.name;
-      document.getElementById('fileSize').textContent = formatFileSize(file.size);
-      document.getElementById('filePreview').classList.remove('hidden');
-    }
-    
-    function resetFileUpload() {
-      selectedFile = null;
-      document.getElementById('fileInput').value = '';
-      document.getElementById('filePreview').classList.add('hidden');
-      document.getElementById('uploadProgress').classList.add('hidden');
-      document.getElementById('uploadError').classList.add('hidden');
-    }
-    
-    function formatFileSize(bytes) {
-      if (bytes < 1024) return bytes + ' B';
-      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-    }
-    
-    async function uploadPhoto() {
-      if (!selectedFile) {
-        alert('请选择要上传的照片');
-        return;
-      }
-      
-      if (!currentUser) {
-        alert('请先登录');
-        openLoginModal();
-        return;
-      }
-      
-      const formData = new FormData();
-      formData.append('photo', selectedFile);
-      formData.append('category', document.getElementById('categorySelect').value);
-      formData.append('title', document.getElementById('photoTitle').value);
-      formData.append('description', document.getElementById('photoDesc').value);
-      
-      const progressBar = document.getElementById('progressBar');
-      const progressText = document.getElementById('progressText');
-      const progressContainer = document.getElementById('uploadProgress');
-      const errorDiv = document.getElementById('uploadError');
-      
-      try {
-        progressContainer.classList.remove('hidden');
-        errorDiv.classList.add('hidden');
-        progressBar.style.width = '0%';
-        progressText.textContent = '上传中...';
-        
-        const xhr = new XMLHttpRequest();
-        
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const percent = Math.round((e.loaded / e.total) * 100);
-            progressBar.style.width = percent + '%';
-            progressText.textContent = `上传中... ${percent}%`;
-          }
-        });
-        
-        xhr.addEventListener('load', () => {
-          if (xhr.status === 200) {
-            const response = JSON.parse(xhr.responseText);
-            progressText.textContent = '✅ 上传成功！';
-            progressBar.classList.add('bg-green-500');
-            
-            setTimeout(() => {
-              closeUploadModal();
-              loadPhotos(document.querySelector('#categoryFilters .bg-primary').dataset.category);
-            }, 1000);
-          } else {
-            const response = JSON.parse(xhr.responseText);
-            errorDiv.textContent = response.error || '上传失败';
-            errorDiv.classList.remove('hidden');
-            progressContainer.classList.add('hidden');
-          }
-        });
-        
-        xhr.addEventListener('error', () => {
-          errorDiv.textContent = '网络错误，请稍后重试';
-          errorDiv.classList.remove('hidden');
-          progressContainer.classList.add('hidden');
-        });
-        
-        xhr.open('POST', '/api/upload');
-        xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
-        xhr.send(formData);
-      } catch (error) {
-        errorDiv.textContent = '上传失败：' + error.message;
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200) {
+        progressText.textContent = '✅ 上传成功！';
+        progressBar.classList.add('bg-green-500');
+        setTimeout(() => {
+          closeUploadModal();
+          loadPhotos(document.querySelector('#categoryFilters .bg-primary')?.dataset.category || '全部');
+        }, 1000);
+      } else {
+        const response = JSON.parse(xhr.responseText);
+        errorDiv.textContent = response.error || '上传失败';
         errorDiv.classList.remove('hidden');
         progressContainer.classList.add('hidden');
       }
-    }
+    });
+    
+    xhr.addEventListener('error', () => {
+      errorDiv.textContent = '网络错误，请稍后重试';
+      errorDiv.classList.remove('hidden');
+      progressContainer.classList.add('hidden');
+    });
+    
+    xhr.open('POST', '/api/upload');
+    xhr.setRequestHeader('Authorization', `Bearer ${authToken}`);
+    xhr.send(formData);
+  } catch (error) {
+    errorDiv.textContent = '上传失败：' + error.message;
+    errorDiv.classList.remove('hidden');
+    progressContainer.classList.add('hidden');
+  }
+}
   </script>
 </body>
 </html>
