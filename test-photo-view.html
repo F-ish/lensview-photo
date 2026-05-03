@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>照片预览测试</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+</head>
+<body class="bg-dark text-light" style="background: #121212;">
+  <div class="container mx-auto p-8">
+    <h1 class="text-3xl font-bold mb-6">照片预览功能测试</h1>
+    
+    <!-- 照片网格 -->
+    <div class="grid grid-cols-3 gap-4" id="photoGrid">
+      <div class="bg-secondary rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition" onclick="viewPhoto(0)">
+        <img src="https://via.placeholder.com/400x300/0078D4/FFFFFF?text=Photo+1" class="w-full h-48 object-cover">
+        <div class="p-4"><span class="text-xs text-primary">测试分类</span></div>
+      </div>
+      <div class="bg-secondary rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition" onclick="viewPhoto(1)">
+        <img src="https://via.placeholder.com/400x300/1E1E1E/FFFFFF?text=Photo+2" class="w-full h-48 object-cover">
+        <div class="p-4"><span class="text-xs text-primary">测试分类</span></div>
+      </div>
+      <div class="bg-secondary rounded-xl overflow-hidden cursor-pointer hover:scale-105 transition" onclick="viewPhoto(2)">
+        <img src="https://via.placeholder.com/400x300/666666/FFFFFF?text=Photo+3" class="w-full h-48 object-cover">
+        <div class="p-4"><span class="text-xs text-primary">测试分类</span></div>
+      </div>
+    </div>
+    
+    <div class="mt-8 p-4 bg-secondary rounded-lg">
+      <h3 class="font-bold mb-2">测试说明：</h3>
+      <ul class="list-disc list-inside space-y-1 text-sm">
+        <li>点击上面的照片卡片，应该弹出预览窗口</li>
+        <li>点击左右箭头或按键盘 ← → 切换照片</li>
+        <li>点击背景或按 Esc 关闭预览</li>
+        <li>如果点击无反应，按 F12 查看 Console 错误</li>
+      </ul>
+    </div>
+  </div>
+  
+  <!-- 预览模态框 -->
+  <div id="photoModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-dark/95" onclick="handleModalBackdropClick(event)">
+    <div class="relative max-w-6xl max-h-screen p-4 flex items-center justify-center">
+      <button onclick="event.stopPropagation(); showPrevPhoto()" class="absolute left-2 z-[71] bg-dark/60 hover:bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center transition opacity-0 hover:opacity-100">
+        <i class="fa fa-chevron-left text-2xl"></i>
+      </button>
+      
+      <div class="relative">
+        <img id="modalPhotoImg" src="" class="max-w-full max-h-[85vh] object-contain rounded-lg" onclick="event.stopPropagation()">
+        <div class="mt-3 text-center">
+          <h3 id="modalPhotoTitle" class="text-lg font-bold"></h3>
+          <p id="modalPhotoIndex" class="text-xs text-muted mt-2"></p>
+        </div>
+      </div>
+      
+      <button onclick="event.stopPropagation(); showNextPhoto()" class="absolute right-2 z-[71] bg-dark/60 hover:bg-primary text-white w-12 h-12 rounded-full flex items-center justify-center transition opacity-0 hover:opacity-100">
+        <i class="fa fa-chevron-right text-2xl"></i>
+      </button>
+      
+      <button onclick="closePhotoModal()" class="absolute top-4 right-4 z-[71] bg-dark/80 hover:bg-red-500 text-white w-10 h-10 rounded-full flex items-center justify-center transition">
+        <i class="fa fa-times text-xl"></i>
+      </button>
+    </div>
+  </div>
+  
+  <script>
+    let currentPhotos = [
+      {url: 'https://via.placeholder.com/800x600/0078D4/FFFFFF?text=Photo+1', filename: '测试照片 1'},
+      {url: 'https://via.placeholder.com/800x600/1E1E1E/FFFFFF?text=Photo+2', filename: '测试照片 2'},
+      {url: 'https://via.placeholder.com/800x600/666666/FFFFFF?text=Photo+3', filename: '测试照片 3'}
+    ];
+    let currentPhotoIndex = -1;
+    
+    function viewPhoto(index) {
+      console.log('查看照片:', index);
+      if (index < 0 || index >= currentPhotos.length) {
+        console.error('索引超出范围');
+        return;
+      }
+      
+      currentPhotoIndex = index;
+      const photo = currentPhotos[index];
+      
+      const modal = document.getElementById('photoModal');
+      const img = document.getElementById('modalPhotoImg');
+      const title = document.getElementById('modalPhotoTitle');
+      const indexEl = document.getElementById('modalPhotoIndex');
+      
+      console.log('设置图片:', photo.url);
+      img.src = photo.url;
+      title.textContent = photo.filename;
+      indexEl.textContent = `${index + 1} / ${currentPhotos.length}`;
+      
+      console.log('显示模态框');
+      modal.classList.remove('hidden');
+    }
+    
+    function showNextPhoto() {
+      console.log('下一张');
+      if (currentPhotoIndex < currentPhotos.length - 1) {
+        viewPhoto(currentPhotoIndex + 1);
+      }
+    }
+    
+    function showPrevPhoto() {
+      console.log('上一张');
+      if (currentPhotoIndex > 0) {
+        viewPhoto(currentPhotoIndex - 1);
+      }
+    }
+    
+    function handleModalBackdropClick(event) {
+      if (event.target === event.currentTarget) {
+        closePhotoModal();
+      }
+    }
+    
+    function closePhotoModal() {
+      document.getElementById('photoModal').classList.add('hidden');
+    }
+    
+    document.addEventListener('keydown', (e) => {
+      if (!document.getElementById('photoModal').classList.contains('hidden')) {
+        if (e.key === 'ArrowLeft') showPrevPhoto();
+        else if (e.key === 'ArrowRight') showNextPhoto();
+        else if (e.key === 'Escape') closePhotoModal();
+      }
+    });
+    
+    console.log('测试页面已加载，函数:', typeof viewPhoto);
+  </script>
+</body>
+</html>

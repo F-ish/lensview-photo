@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>调试测试</title>
+    <style>
+        body { background: #121212; color: #F5F5F5; font-family: sans-serif; padding: 20px; }
+        .test { background: #1E1E1E; padding: 15px; margin: 10px 0; border-radius: 8px; }
+        button { background: #0078D4; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; margin: 5px; }
+        button:hover { background: #005a9e; }
+        .result { background: #000; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+        .success { color: #4CAF50; }
+        .error { color: #f44336; }
+    </style>
+</head>
+<body>
+    <h1>LensView 照片预览调试</h1>
+    
+    <div class="test">
+        <h3>测试 1: 检查全局变量</h3>
+        <button onclick="testGlobals()">运行测试</button>
+        <div id="result1" class="result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>测试 2: 检查函数</h3>
+        <button onclick="testFunctions()">运行测试</button>
+        <div id="result2" class="result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>测试 3: 检查模态框</h3>
+        <button onclick="testModal()">运行测试</button>
+        <div id="result3" class="result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>测试 4: 模拟照片加载</h3>
+        <button onclick="testLoadPhotos()">运行测试</button>
+        <div id="result4" class="result"></div>
+    </div>
+    
+    <div class="test">
+        <h3>测试 5: 打开预览窗口</h3>
+        <button onclick="testViewPhoto()">打开预览</button>
+        <div id="result5" class="result"></div>
+    </div>
+
+    <script>
+        function testGlobals() {
+            const r = document.getElementById('result1');
+            try {
+                // 尝试访问主页的变量
+                r.innerHTML = '<span class="error">❌ 无法访问主页变量（跨域限制）</span>\n\n请在主页 Console 中执行:\nconsole.log(typeof currentPhotos)\nconsole.log(typeof viewPhoto)';
+            } catch(e) {
+                r.innerHTML = '<span class="error">错误:</span> ' + e.message;
+            }
+        }
+        
+        function testFunctions() {
+            const r = document.getElementById('result2');
+            r.innerHTML = '请在主页 Console 中执行:\nconsole.log(typeof viewPhoto)\nconsole.log(typeof showNextPhoto)\nconsole.log(typeof closePhotoModal)';
+        }
+        
+        function testModal() {
+            const r = document.getElementById('result3');
+            r.innerHTML = '请在主页 Console 中执行:\nconsole.log(document.getElementById("photoModal"))';
+        }
+        
+        function testLoadPhotos() {
+            const r = document.getElementById('result4');
+            r.innerHTML = '请在主页 Console 中执行:\ncurrentPhotos = [{url:"https://via.placeholder.com/800x600", filename:"测试", category:"测试"}];\ncurrentCategory = "测试";\nviewPhoto(0);';
+        }
+        
+        function testViewPhoto() {
+            const r = document.getElementById('result5');
+            r.innerHTML = '请打开主页 http://localhost/ 然后点击照片测试';
+        }
+        
+        console.log('调试页面已加载');
+    </script>
+</body>
+</html>

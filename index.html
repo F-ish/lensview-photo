@@ -37,7 +37,7 @@
         transition: transform 0.3s ease;
       }
       .hover-scale:hover {
-        transform: scale(1.02);
+        transform: scale(1.05);
       }
       .photo-card-shadow {
         box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
@@ -51,6 +51,75 @@
       .scrollbar-hide {
         -ms-overflow-style: none;
         scrollbar-width: none;
+      }
+      
+      /* 🎨 骨架屏动画 */
+      .skeleton {
+        background: linear-gradient(90deg, #2a2a2a 25%, #3a3a3a 50%, #2a2a2a 75%);
+        background-size: 200% 100%;
+        animation: shimmer 1.5s infinite;
+      }
+      
+      @keyframes shimmer {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      
+      .skeleton-card {
+        background: #1e1e1e;
+      }
+      
+      .skeleton-image {
+        height: 12rem;
+        width: 100%;
+      }
+      
+      .skeleton-text {
+        height: 1rem;
+        width: 5rem;
+        margin: 1rem;
+        border-radius: 0.25rem;
+      }
+      
+      /* 🎬 图片淡入动画 */
+      .photo-fade-in {
+        animation: fadeIn 0.4s ease-in-out;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      /* 🖼️ 灯箱动画 */
+      #photoPreviewModal {
+        transition: opacity 0.3s ease;
+      }
+      
+      #previewImage {
+        animation: zoomIn 0.3s ease;
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+      }
+      
+      @keyframes zoomIn {
+        from { transform: scale(0.95); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+      }
+      
+      /* 🌫️ 毛玻璃背景 */
+      .backdrop-blur {
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+      }
+      
+      /* 📱 懒加载图片初始状态 */
+      img[data-src] {
+        filter: blur(0);
+        transition: filter 0.3s ease;
+      }
+      
+      img[data-src].loading {
+        filter: blur(5px);
       }
     }
   </style>
@@ -157,9 +226,9 @@
   </main>
 
   <!-- 照片预览模态框 -->
-  <div id="photoPreviewModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-dark/95" onclick="closePhotoPreview(event)">
+  <div id="photoPreviewModal" class="hidden fixed inset-0 z-[70] flex items-center justify-center bg-dark/95 backdrop-blur" onclick="closePhotoPreview(event)">
     <!-- 关闭按钮 - 固定在页面右上角 -->
-    <button onclick="closePhotoPreviewDirect()" class="fixed top-6 right-6 z-[80] bg-red-500/80 hover:bg-red-600 text-white w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg">
+    <button onclick="closePhotoPreviewDirect()" class="fixed top-6 right-6 z-[80] bg-red-500/80 hover:bg-red-600 text-white w-12 h-12 rounded-full flex items-center justify-center transition shadow-lg hover:scale-110">
       <i class="fa fa-times text-2xl"></i>
     </button>
     
@@ -170,7 +239,10 @@
     
     <!-- 图片容器 -->
     <div class="relative max-w-6xl max-h-screen p-4 flex items-center justify-center">
-      <img id="previewImage" src="" class="max-w-full max-h-[85vh] object-contain rounded-lg" onclick="event.stopPropagation()">
+      <div id="previewLoading" class="hidden absolute inset-0 flex items-center justify-center z-[76]">
+        <div class="w-16 h-16 border-4 border-primary/30 border-t-primary rounded-full animate-spin"></div>
+      </div>
+      <img id="previewImage" src="" class="max-w-full max-h-[85vh] object-contain rounded-lg photo-fade-in" onclick="event.stopPropagation()" onload="hidePreviewLoading()" onerror="hidePreviewLoading()">
     </div>
     
     <!-- 右侧切换按钮 -->
@@ -178,11 +250,13 @@
       <i class="fa fa-chevron-right text-3xl"></i>
     </button>
     
-    <!-- 照片信息 -->
-    <div class="fixed bottom-8 left-1/2 -translate-x-1/2 z-[75] bg-dark/80 px-6 py-3 rounded-full text-center">
-      <h3 id="previewTitle" class="text-lg font-bold text-light"></h3>
-      <p id="previewCategory" class="text-sm text-muted mt-1"></p>
-      <p id="previewIndex" class="text-xs text-primary mt-2"></p>
+    <!-- 照片信息 - 固定在底部，避免布局重排 -->
+    <div class="fixed bottom-0 left-0 right-0 z-[76] bg-gradient-to-t from-dark/95 to-dark/70 backdrop-blur-sm py-4 px-6">
+      <div class="max-w-4xl mx-auto text-center">
+        <h3 id="previewTitle" class="text-lg font-bold text-light"></h3>
+        <p id="previewCategory" class="text-sm text-muted mt-1"></p>
+        <p id="previewIndex" class="text-xs text-primary mt-2"></p>
+      </div>
     </div>
   </div>
 
@@ -274,6 +348,7 @@
 // ========== 全局变量 ==========
 let filteredPhotos = [];        // 当前筛选的照片数组
 let currentPhotoIndex = -1;     // 当前预览的照片索引
+let currentCategory = '全部';    // 当前选中的分类
 let currentUser = null;
 let authToken = null;
 
@@ -286,6 +361,9 @@ window.addEventListener('DOMContentLoaded', () => {
   setupCategoryFilters();
   setupFileInput();
   setupKeyboardEvents();
+  
+  // 🎨 添加页面进入动画
+  document.body.classList.add('photo-fade-in');
 });
 
 // ========== 认证管理 ==========
@@ -388,7 +466,18 @@ function logout() {
 }
 
 // ========== 分类管理 ==========
-async function loadCategories() {
+let lastCategoriesLoad = 0;  // 上次加载分类的时间戳
+const CATEGORIES_CACHE_MS = 2000;  // 分类缓存时间（2 秒）
+
+async function loadCategories(force = false) {
+  const now = Date.now();
+  
+  // ✅ 防抖：2 秒内不重复加载，除非强制刷新
+  if (!force && now - lastCategoriesLoad < CATEGORIES_CACHE_MS) {
+    return;
+  }
+  lastCategoriesLoad = now;
+  
   try {
     const response = await fetch('/api/categories');
     const data = await response.json();
@@ -397,16 +486,42 @@ async function loadCategories() {
     if (!container) return;
     
     const allButton = container.querySelector('[data-category="全部"]');
+    
+    // ✅ 只添加有照片的分类（过滤空分类）
+    const newButtons = [];
+    for (const cat of data.categories) {
+      try {
+        // 检查该分类下是否有照片
+        const imgResponse = await fetch(`/api/images/${cat}`);
+        const imgData = await imgResponse.json();
+        
+        if (imgData.images && imgData.images.length > 0) {
+          const btn = document.createElement('button');
+          btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm hover:text-light cursor-pointer';
+          btn.dataset.category = cat;
+          btn.textContent = cat;
+          newButtons.push(btn);
+        }
+      } catch (err) {
+        console.error(`检查分类 ${cat} 失败:`, err);
+      }
+    }
+    
+    // ✅ 只在有变化时才更新 DOM（避免闪烁）
+    const currentButtons = Array.from(container.querySelectorAll('[data-category]:not([data-category="全部"])'));
+    const currentCats = currentButtons.map(b => b.dataset.category);
+    const newCats = newButtons.map(b => b.dataset.category);
+    
+    // 如果分类列表没有变化，不更新
+    if (JSON.stringify(currentCats.sort()) === JSON.stringify(newCats.sort())) {
+      return;
+    }
+    
+    // 更新 DOM
     container.innerHTML = '';
     if (allButton) container.appendChild(allButton);
+    newButtons.forEach(btn => container.appendChild(btn));
     
-    data.categories.forEach(cat => {
-      const btn = document.createElement('button');
-      btn.className = 'bg-dark/50 text-muted py-1 px-3 rounded-full text-sm hover:text-light cursor-pointer';
-      btn.dataset.category = cat;
-      btn.textContent = cat;
-      container.appendChild(btn);
-    });
   } catch (error) {
     console.error('加载分类失败:', error);
   }
@@ -427,6 +542,7 @@ function setupCategoryFilters() {
     
     const category = btn.dataset.category;
     if (category) {
+      // ✅ 只在删除照片后才需要刷新分类标签，切换分类时不刷新（避免闪烁）
       loadPhotos(category);
     }
   });
@@ -435,18 +551,38 @@ function setupCategoryFilters() {
 // ========== 照片加载与显示 ==========
 async function loadPhotos(category) {
   const grid = document.getElementById('photoGrid');
-  grid.innerHTML = '<div class="col-span-full text-center text-muted py-20">加载中...</div>';
+  
+  // 🦴 先显示骨架屏
+  grid.innerHTML = Array(8).fill(`
+    <div class="skeleton-card rounded-xl overflow-hidden">
+      <div class="skeleton-image skeleton"></div>
+      <div class="skeleton-text skeleton"></div>
+    </div>
+  `).join('');
   
   try {
+    // 更新当前分类
+    currentCategory = category || '全部';
+    
     let images = [];
     if (category === '全部') {
       const catsResponse = await fetch('/api/categories');
       const catsData = await catsResponse.json();
       
-      for (const cat of catsData.categories) {
-        const imgResponse = await fetch(`/api/images/${cat}`);
-        const imgData = await imgResponse.json();
-        images = images.concat(imgData.images.map(img => ({ ...img, category: cat })));
+      // ✅ 安全遍历：确保 categories 是数组
+      const categories = Array.isArray(catsData.categories) ? catsData.categories : [];
+      
+      for (const cat of categories) {
+        try {
+          const imgResponse = await fetch(`/api/images/${cat}`);
+          const imgData = await imgResponse.json();
+          if (imgData.images && imgData.images.length > 0) {
+            images = images.concat(imgData.images.map(img => ({ ...img, category: cat })));
+          }
+        } catch (err) {
+          console.error(`加载分类 ${cat} 失败:`, err);
+          // 继续加载其他分类
+        }
       }
     } else {
       const response = await fetch(`/api/images/${category}`);
@@ -462,15 +598,22 @@ async function loadPhotos(category) {
       return;
     }
     
-    // 渲染照片卡片
+    // 渲染照片卡片（懒加载）
     grid.innerHTML = '';
     images.forEach((img, index) => {
       const card = document.createElement('div');
-      card.className = 'bg-secondary rounded-xl overflow-hidden photo-card-shadow hover-scale cursor-pointer';
+      card.className = 'bg-secondary rounded-xl overflow-hidden photo-card-shadow hover-scale cursor-pointer photo-fade-in';
+      card.style.animationDelay = `${index * 0.05}s`; // 阶梯式淡入
       card.onclick = () => openPhotoPreview(img.url, img.filename, img.category);
+      
+      // 🖼️ 懒加载：小卡片使用 data-src，点击时才加载真实图片
       card.innerHTML = `
-        <div class="aspect-w-4 aspect-h-3 bg-dark/50 relative">
-          <img src="${img.url}" alt="${img.filename}" class="w-full h-48 object-cover" loading="lazy">
+        <div class="aspect-w-4 aspect-h-3 bg-dark/50 relative overflow-hidden">
+          <img data-src="${img.url}" 
+               src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 300'%3E%3Crect fill='%232a2a2a' width='400' height='300'/%3E%3C/svg%3E"
+               alt="${img.filename}" 
+               class="w-full h-48 object-cover lazy-image loading"
+               loading="lazy">
         </div>
         <div class="p-4">
           <div class="flex justify-between items-center">
@@ -486,11 +629,61 @@ async function loadPhotos(category) {
       grid.appendChild(card);
     });
     
+    // 🚀 初始化懒加载观察器
+    initLazyLoading();
+    
     console.log(`✅ 加载 ${images.length} 张照片，分类：${category}`);
   } catch (error) {
     console.error('加载照片失败:', error);
     grid.innerHTML = '<div class="col-span-full text-center text-red-400 py-20">加载失败</div>';
   }
+}
+
+// ========== 懒加载功能 ==========
+let lazyObserver = null;
+
+function initLazyLoading() {
+  // 如果已有观察器，先断开
+  if (lazyObserver) {
+    lazyObserver.disconnect();
+  }
+  
+  // 🎯 使用 Intersection Observer 实现懒加载
+  lazyObserver = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        const img = entry.target;
+        const dataSrc = img.getAttribute('data-src');
+        
+        if (dataSrc && img.classList.contains('loading')) {
+          // 开始加载真实图片
+          const tempImg = new Image();
+          tempImg.onload = () => {
+            img.src = dataSrc;
+            img.classList.remove('loading');
+            img.removeAttribute('data-src');
+          };
+          tempImg.onerror = () => {
+            img.classList.remove('loading');
+          };
+          tempImg.src = dataSrc;
+          
+          // 加载后停止观察
+          lazyObserver.unobserve(img);
+        }
+      }
+    });
+  }, {
+    rootMargin: '100px', // 提前 100px 开始加载
+    threshold: 0.1
+  });
+  
+  // 观察所有懒加载图片
+  document.querySelectorAll('.lazy-image').forEach(img => {
+    if (img.hasAttribute('data-src')) {
+      lazyObserver.observe(img);
+    }
+  });
 }
 
 // ========== 大图预览功能 ==========
@@ -499,6 +692,7 @@ function openPhotoPreview(url, filename, category) {
   
   const modal = document.getElementById('photoPreviewModal');
   const img = document.getElementById('previewImage');
+  const loading = document.getElementById('previewLoading');
   const title = document.getElementById('previewTitle');
   const categoryEl = document.getElementById('previewCategory');
   const indexEl = document.getElementById('previewIndex');
@@ -507,13 +701,49 @@ function openPhotoPreview(url, filename, category) {
   currentPhotoIndex = filteredPhotos.findIndex(p => p.url === url);
   if (currentPhotoIndex === -1) currentPhotoIndex = 0;
   
-  img.src = url;
+  // 🎬 显示加载动画
+  loading.classList.remove('hidden');
+  img.style.opacity = '0';
+  
+  // 设置图片信息
   title.textContent = filename;
   categoryEl.textContent = `分类：${category}`;
   indexEl.textContent = `${currentPhotoIndex + 1} / ${filteredPhotos.length}`;
   
+  // 显示模态框
   modal.classList.remove('hidden');
+  
+  // 🚀 加载高清原图
+  loadPreviewImage(url);
+  
   console.log(`索引：${currentPhotoIndex + 1}/${filteredPhotos.length}`);
+}
+
+function loadPreviewImage(url) {
+  const img = document.getElementById('previewImage');
+  const loading = document.getElementById('previewLoading');
+  
+  // 重置动画
+  img.classList.remove('photo-fade-in');
+  void img.offsetWidth; // 触发重绘
+  img.classList.add('photo-fade-in');
+  
+  // 加载新图片
+  const tempImg = new Image();
+  tempImg.onload = () => {
+    img.src = url;
+    img.style.opacity = '1';
+  };
+  tempImg.onerror = () => {
+    loading.classList.add('hidden');
+    img.style.opacity = '1';
+  };
+  tempImg.src = url;
+}
+
+function hidePreviewLoading() {
+  const loading = document.getElementById('previewLoading');
+  loading.classList.add('hidden');
 }
 
 function closePhotoPreview(event) {
@@ -543,15 +773,24 @@ function nextPhoto() {
 function updatePreview() {
   const photo = filteredPhotos[currentPhotoIndex];
   const img = document.getElementById('previewImage');
+  const loading = document.getElementById('previewLoading');
   const title = document.getElementById('previewTitle');
   const categoryEl = document.getElementById('previewCategory');
   const indexEl = document.getElementById('previewIndex');
   
   if (photo) {
-    img.src = photo.url;
+    // 🎬 显示加载动画
+    loading.classList.remove('hidden');
+    img.style.opacity = '0';
+    
+    // 更新信息
     title.textContent = photo.filename;
     categoryEl.textContent = `分类：${photo.category}`;
     indexEl.textContent = `${currentPhotoIndex + 1} / ${filteredPhotos.length}`;
+    
+    // 🚀 加载高清原图
+    loadPreviewImage(photo.url);
+    
     console.log(`🔄 切换到：${photo.filename}`);
   }
 }
@@ -582,7 +821,12 @@ async function deletePhoto(category, filename) {
     });
     
     if (response.ok) {
-      loadPhotos(currentCategory || '全部');
+      console.log(`🗑️ 已删除：${category}/${filename}`);
+      // ✅ 只在删除后刷新分类标签（过滤空分类），照片列表使用当前分类
+      loadCategories();
+      // 使用当前选中的分类，避免 undefined
+      const currentCat = currentCategory || '全部';
+      loadPhotos(currentCat);
     } else {
       const data = await response.json();
       alert('删除失败：' + data.error);
@@ -661,11 +905,15 @@ async function uploadPhoto() {
     return;
   }
   
+  const category = document.getElementById('categorySelect').value;
+  console.log('📤 准备上传 - 分类:', category, '文件:', selectedFile.name);
+  
+  // ⚠️ 重要：先添加 category，再添加 photo（Multer 需要按顺序解析）
   const formData = new FormData();
+  formData.append('category', category);
   formData.append('photo', selectedFile);
-  formData.append('category', document.getElementById('categorySelect').value);
-  formData.append('title', document.getElementById('photoTitle').value);
-  formData.append('description', document.getElementById('photoDesc').value);
+  formData.append('title', document.getElementById('photoTitle').value || '');
+  formData.append('description', document.getElementById('photoDesc').value || '');
   
   const progressBar = document.getElementById('progressBar');
   const progressText = document.getElementById('progressText');
@@ -690,14 +938,20 @@ async function uploadPhoto() {
     
     xhr.addEventListener('load', () => {
       if (xhr.status === 200) {
+        const response = JSON.parse(xhr.responseText);
+        console.log('✅ 上传响应:', response);
         progressText.textContent = '✅ 上传成功！';
         progressBar.classList.add('bg-green-500');
         setTimeout(() => {
           closeUploadModal();
-          loadPhotos(document.querySelector('#categoryFilters .bg-primary')?.dataset.category || '全部');
+          // ✅ 刷新分类标签（显示新分类）和照片列表
+          loadCategories(true);  // 强制刷新分类
+          const currentCategory = document.querySelector('#categoryFilters .bg-primary')?.dataset.category || '全部';
+          loadPhotos(currentCategory);
         }, 1000);
       } else {
         const response = JSON.parse(xhr.responseText);
+        console.error('❌ 上传失败:', response);
         errorDiv.textContent = response.error || '上传失败';
         errorDiv.classList.remove('hidden');
         progressContainer.classList.add('hidden');

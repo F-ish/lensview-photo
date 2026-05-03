@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>测试照片查看</title>
+    <style>
+        .photo { width: 200px; height: 150px; background: #333; margin: 10px; cursor: pointer; display: inline-block; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 999; }
+        .modal img { max-width: 90%; max-height: 90%; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+        .close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>照片查看功能测试</h1>
+    <div id="photos">
+        <div class="photo" onclick="viewPhoto('https://via.placeholder.com/800x600?text=Photo+1', '测试照片 1')"></div>
+        <div class="photo" onclick="viewPhoto('https://via.placeholder.com/800x600?text=Photo+2', '测试照片 2')"></div>
+    </div>
+    
+    <div id="modal" class="modal" onclick="closeModal()">
+        <span class="close">&times;</span>
+        <img id="modalImg" src="" alt="">
+    </div>
+    
+    <script>
+        function viewPhoto(url, title) {
+            console.log('查看照片:', url, title);
+            document.getElementById('modalImg').src = url;
+            document.getElementById('modal').style.display = 'block';
+            alert('照片查看功能正常！\n\n如果看到这张提示，说明点击事件正常工作。\n\n照片 URL: ' + url);
+        }
+        
+        function closeModal() {
+            document.getElementById('modal').style.display = 'none';
+        }
+        
+        console.log('测试页面已加载');
+    </script>
+    
+    <p>点击上面的灰色方块测试照片查看功能</p>
+</body>
+</html>
