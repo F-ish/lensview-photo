@@ -28,9 +28,9 @@
   
   <style type="text/tailwindcss">
     @layer utilities {
-      /* 🌊 瀑布流布局 - 紧凑排布 */
+      /* 🌊 瀑布流布局 - 优先保证横图展示 */
       .photo-grids {
-        column-count: 5;
+        column-count: 4;  /* 减少列数，让每列更宽 */
         column-gap: 1rem;
         padding: 16px;
         width: 100%;
@@ -41,24 +41,25 @@
       .photo-card {
         break-inside: avoid;
         margin-bottom: 1rem;
-        display: inline-block; /* 瀑布流必需 */
-        width: 100%; /* 占满列宽 */
+        display: inline-block;
+        width: 100%;
+        min-width: 280px;  /* 保证卡片最小宽度，横图不会太小 */
       }
 
       /* 响应式：根据屏幕宽度调整列数 */
-      @media (max-width: 1600px) {
-        .photo-grids {
-          column-count: 4;
-        }
-      }
-      @media (max-width: 1200px) {
+      @media (max-width: 1400px) {
         .photo-grids {
           column-count: 3;
         }
       }
-      @media (max-width: 800px) {
+      @media (max-width: 1000px) {
         .photo-grids {
           column-count: 2;
+        }
+      }
+      @media (max-width: 600px) {
+        .photo-grids {
+          column-count: 1;
         }
       }
 
